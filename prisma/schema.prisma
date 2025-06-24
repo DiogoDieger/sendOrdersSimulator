@@ -1,0 +1,268 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                  Int               @id @default(autoincrement())
+  phoneNumber         String?
+  username            String?           @unique
+  name                String?
+  password            String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  twoFactorCode       String?
+  gender              Gender?
+  cookies             String?           @db.Text
+  isMontada           Boolean           @default(false)
+  isBanned            Boolean           @default(false)
+  isLogged            Boolean           @default(false)
+  followCount         Int               @default(0)
+  isProcessing        Boolean           @default(false)
+  processingStartedAt DateTime?
+  processingFailed    Boolean           @default(false)
+  smsProviderId       Int?
+  LC                  Boolean           @default(false)
+  LS                  Boolean           @default(false)
+  mountedAt           DateTime?
+  montagemConfigId    Int?
+  phoneId             String?
+  isProcessingLogin   Boolean           @default(false)
+  isRestricted        Boolean           @default(false)
+  TR                  Boolean           @default(false)
+  processingFailedAt  DateTime?
+  isVerified          Boolean           @default(false)
+  isBeingProcessed    Boolean           @default(false)
+  lastVerifiedAt      DateTime?
+  verifiedAt          DateTime?
+  isBannedCritic      Boolean           @default(false)
+  AccountNew          Boolean           @default(false)
+  initialFollowCount  Int?              @default(0)
+  workerId            String?           @db.VarChar(190)
+  sessionId           String?           @db.VarChar(190)
+  MontagemConfig      MontagemConfig?   @relation(fields: [montagemConfigId], references: [id])
+  actions             Action[]
+  following           Follow[]
+  ProcessedAction     ProcessedAction[]
+
+  @@index([smsProviderId])
+  @@index([montagemConfigId])
+}
+
+model Follow {
+  id              Int      @id @default(autoincrement())
+  accountId       Int
+  username        String
+  instagramUserId String
+  followedAt      DateTime @default(now())
+  status          String   @default("following")
+  orderId         Int?
+  actionId        Int?
+  account         Account  @relation(fields: [accountId], references: [id])
+  Action          Action?  @relation(fields: [actionId], references: [id])
+  order           Order?   @relation(fields: [orderId], references: [id])
+
+  @@unique([accountId, username])
+  @@index([accountId])
+  @@index([orderId], map: "Follow_orderId_fkey")
+  @@index([actionId], map: "Follow_actionId_fkey")
+}
+
+model VpsServer {
+  id                     Int     @id @default(autoincrement())
+  url                    String
+  active                 Boolean @default(false)
+  currentMountedAccounts Int?
+  maxMountedAccounts     Int?    @default(30)
+  changeIp               Boolean @default(false)
+  followCount            Int?
+  orders                 Order[]
+}
+
+model Order {
+  id                      Int       @id @default(autoincrement())
+  instagramTargetUsername String
+  numberOfAccounts        Int
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  status                  String    @default("pending")
+  vpsServerId             Int
+  attemptedFollows        Int       @default(0)
+  successfulFollows       Int       @default(0)
+  mainOrderId             String
+  instagramStarterFollows Int?
+  follows                 Follow[]
+  mainOrder               MainOrder @relation(fields: [mainOrderId], references: [id])
+  vpsServer               VpsServer @relation(fields: [vpsServerId], references: [id])
+
+  @@index([mainOrderId])
+  @@index([vpsServerId])
+}
+
+model Service {
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  description          String?                @db.Text
+  costPrice            Decimal                @db.Decimal(10, 2)
+  sellingPrice         Decimal                @db.Decimal(10, 2)
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  MainOrder            MainOrder[]
+  ServiceForbiddenWord ServiceForbiddenWord[]
+}
+
+model MainOrder {
+  id                      String    @id
+  instagramTargetUsername String
+  instagramUserId         String
+  totalAccounts           Int
+  successfulFollows       Int       @default(0)
+  attemptedFollows        Int       @default(0)
+  status                  String    @default("pending")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  serviceId               Int?
+  initialFollowCount      Int?
+  externalUpdated         Boolean   @default(false)
+  externalUpdatedAt       DateTime?
+  actions                 Action[]
+  Service                 Service?  @relation(fields: [serviceId], references: [id])
+  orders                  Order[]
+
+  @@index([serviceId])
+}
+
+model ForbiddenWord {
+  id                   Int                    @id @default(autoincrement())
+  word                 String                 @unique
+  description          String?                @db.Text
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  isActive             Boolean                @default(true)
+  category             String?
+  ServiceForbiddenWord ServiceForbiddenWord[]
+}
+
+model ServiceForbiddenWord {
+  id              Int           @id @default(autoincrement())
+  serviceId       Int
+  forbiddenWordId Int
+  createdAt       DateTime      @default(now())
+  ForbiddenWord   ForbiddenWord @relation(fields: [forbiddenWordId], references: [id], onDelete: Cascade)
+  Service         Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, forbiddenWordId])
+  @@index([forbiddenWordId])
+  @@index([serviceId])
+}
+
+model SmsProvider {
+  id          Int              @id @default(autoincrement())
+  type        SmsProvider_type
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime
+  apiKey      String?
+  isBotPaused Boolean?         @default(false)
+  apkUrl      String?
+}
+
+model Action {
+  id                      Int               @id @default(autoincrement())
+  instagramTargetUsername String
+  instagramUserId         String
+  successfulFollow        Boolean           @default(false)
+  status                  String            @default("pending")
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  mainOrderId             String
+  type                    ActionType        @default(FOLLOW)
+  accountId               Int?
+  processedActionId       Int?
+  followTry               Boolean?          @default(false)
+  followTryAt             DateTime?
+  isClaimed               Boolean?          @default(false)
+  account                 Account?          @relation(fields: [accountId], references: [id])
+  mainOrder               MainOrder         @relation(fields: [mainOrderId], references: [id])
+  Follow                  Follow[]
+  ProcessedAction         ProcessedAction[]
+
+  @@index([mainOrderId])
+  @@index([accountId])
+}
+
+model AccountFromBot {
+  id       Int    @id @default(autoincrement())
+  username String
+}
+
+model FollowSettings {
+  id                  Int      @id @default(autoincrement())
+  minDelayMs          Int
+  maxDelayMs          Int
+  lotFollowGoal       Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime
+  followBatchSize     Int      @default(10)
+  restDurationMinutes Int      @default(5)
+  dynamicRestRules    Json?
+}
+
+model MontagemConfig {
+  id                     Int       @id @default(autoincrement())
+  name                   String    @unique
+  minFollowCount         Int       @default(3)
+  maxFollowCount         Int       @default(6)
+  minDelaySeconds        Int       @default(5)
+  maxDelaySeconds        Int       @default(7)
+  delayFixed             Int       @default(120)
+  feedPostCount          Int       @default(6)
+  profilePicDelayMinutes Int       @default(2)
+  bioDelayMinutes        Int       @default(2)
+  initialWaitSeconds     Int       @default(20)
+  navWaitSeconds         Int       @default(5)
+  uploadWaitSeconds      Int       @default(7)
+  shareWaitSeconds       Int       @default(10)
+  isActive               Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime
+  maxFeedPostCount       Int       @default(2)
+  minFeedPostCount       Int       @default(1)
+  Account                Account[]
+}
+
+model ProcessedAction {
+  id          Int      @id @default(autoincrement())
+  actionId    Int
+  accountId   Int
+  processedAt DateTime @default(now())
+  status      String   @default("pending")
+  Account     Account  @relation(fields: [accountId], references: [id])
+  Action      Action   @relation(fields: [actionId], references: [id])
+
+  @@index([accountId])
+  @@index([actionId])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum SmsProvider_type {
+  SmsActive
+  SmsBower
+  BOTH
+}
+
+enum ActionType {
+  FOLLOW
+  LIKE
+}
